@@ -1,0 +1,219 @@
+version: '3.8'
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.3
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=true
+      - ELASTIC_PASSWORD=elasticelastic123
+      - xpack.security.http.ssl.enabled=false
+     
+    ports:
+      - "9200:9200"
+    volumes:
+      - elastic-data:/usr/share/elasticsearch/data
+      - ./certs/keystore.jks:/usr/share/elasticsearch/config/certs/keystore.jks:ro
+    networks:
+      - pipeline-net
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.17.3
+    container_name: kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_SERVICEACCOUNTTOKEN=${KIBANA_SA_TOKEN}
+      - NODE_TLS_REJECT_UNAUTHORIZED=0  # désactive la vérification du certificat TLS
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    networks:
+      - pipeline-net
+
+  init-index:
+    build:
+      context: ./init
+    depends_on:
+      - elasticsearch
+    networks:
+      - pipeline-net
+
+  kibana-init:
+    build:
+      context: ./kibana-init
+    depends_on:
+      - kibana
+    networks:
+      - pipeline-net
+
+  nifi:
+    build:
+      context: ./nifi-init
+      args:
+        NIFI_VERSION: 2.3.0
+    container_name: nifi
+    ports:
+      - "8443:8443"
+    environment:
+      - NIFI_WEB_HTTPS_PORT=8443
+      - SINGLE_USER_CREDENTIALS_USERNAME=admin
+      - SINGLE_USER_CREDENTIALS_PASSWORD=adminadmin123
+      - NIFI_SECURITY_USER_AUTHORIZER=single-user-authorizer
+      - NIFI_SECURITY_USER_LOGIN_IDENTITY_PROVIDER=single-user-provider
+      - NIFI_SENSITIVE_PROPS_KEY=IFZye/3hw+ty7DsBB75uUAJGM+j2VB3r
+    volumes:
+      - nifi_conf:/opt/nifi/nifi-current/conf
+      - nifi_database_repository:/opt/nifi/nifi-current/database_repository
+      - nifi_flowfile_repository:/opt/nifi/nifi-current/flowfile_repository
+      - nifi_content_repository:/opt/nifi/nifi-current/content_repository
+      - nifi_provenance_repository:/opt/nifi/nifi-current/provenance_repository
+      - nifi_state:/opt/nifi/nifi-current/state
+      - ./data/shared/xml_input:/data/shared/xml_input
+      - ./data/shared/json_output:/data/shared/json_output
+      - ./data/landing:/data/landing
+      - ./data/success:/data/success
+      - ./data/failure:/data/failure
+      - ./data/joblogs:/data/joblogs
+    networks:
+      - pipeline-net
+
+  spark-master:
+    image: bitnami/spark:3.5.0
+    container_name: spark-master
+    ports:
+      - "8081:8080"
+      - "7077:7077"
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    volumes:
+      - ./data/shared/xml_input:/data/shared/xml_input
+      - ./data/shared/json_output:/data/shared/json_output
+      - ./data/shared:/data/shared
+    networks:
+      - pipeline-net
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+        reservations:
+          cpus: '0.25'
+          memory: 1G
+
+  spark-worker-1:
+    image: bitnami/spark:3.5.0
+    container_name: spark-worker-1
+    depends_on:
+      - spark-master
+    ports:
+      - "8082:8082"
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - SPARK_WORKER_WEBUI_PORT=8082
+    volumes:
+      - ./data/shared/xml_input:/data/shared/xml_input
+      - ./data/shared/json_output:/data/shared/json_output
+      - ./data/shared:/data/shared
+    networks:
+      - pipeline-net
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1.5G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+  spark-worker-2:
+    image: bitnami/spark:3.5.0
+    container_name: spark-worker-2
+    depends_on:
+      - spark-master
+    ports:
+      - "8083:8083"
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - SPARK_WORKER_WEBUI_PORT=8083
+    volumes:
+      - ./data/shared/xml_input:/data/shared/xml_input
+      - ./data/shared/json_output:/data/shared/json_output
+      - ./data/shared:/data/shared
+    networks:
+      - pipeline-net
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+
+  spark-service:
+    build:
+      context: ./spark_service
+    container_name: spark-service
+    ports:
+      - "5000:5000"
+    depends_on:
+      - spark-master
+      - spark-worker-1
+      - spark-worker-2
+    environment:
+      - SPARK_MASTER_URL=spark://spark-master:7077
+    volumes:
+      - ./data/shared/xml_input:/data/shared/xml_input
+      - ./data/shared/json_output:/data/shared/json_output
+      - ./data/shared:/data/shared
+    networks:
+      - pipeline-net
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '0.3'
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  elastic-data:
+  nifi_conf:
+  nifi_database_repository:
+  nifi_flowfile_repository:
+  nifi_content_repository:
+  nifi_provenance_repository:
+  nifi_state:
+
+networks:
+  pipeline-net:
+    name: pipeline-net
+    driver: bridge
+    attachable: true
