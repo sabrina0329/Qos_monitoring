@@ -9,7 +9,6 @@ services:
       - xpack.security.enabled=true
       - ELASTIC_PASSWORD=elasticelastic123
       - xpack.security.http.ssl.enabled=false
-     
     ports:
       - "9200:9200"
     volumes:
@@ -24,7 +23,7 @@ services:
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
       - ELASTICSEARCH_SERVICEACCOUNTTOKEN=${KIBANA_SA_TOKEN}
-      - NODE_TLS_REJECT_UNAUTHORIZED=0  # désactive la vérification du certificat TLS
+      - NODE_TLS_REJECT_UNAUTHORIZED=0
     ports:
       - "5601:5601"
     depends_on:
@@ -70,18 +69,18 @@ services:
       - nifi_content_repository:/opt/nifi/nifi-current/content_repository
       - nifi_provenance_repository:/opt/nifi/nifi-current/provenance_repository
       - nifi_state:/opt/nifi/nifi-current/state
-      - ./data/shared/xml_input:/data/shared/xml_input
-      - ./data/shared/json_output:/data/shared/json_output
       - ./data/landing:/data/landing
       - ./data/success:/data/success
       - ./data/failure:/data/failure
       - ./data/joblogs:/data/joblogs
+      - ./data/shared/xml_input:/data/shared/xml_input
     networks:
       - pipeline-net
 
   spark-master:
     image: bitnami/spark:3.5.0
     container_name: spark-master
+    privileged: true
     ports:
       - "8081:8080"
       - "7077:7077"
@@ -91,10 +90,6 @@ services:
       - SPARK_RPC_ENCRYPTION_ENABLED=no
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
       - SPARK_SSL_ENABLED=no
-    volumes:
-      - ./data/shared/xml_input:/data/shared/xml_input
-      - ./data/shared/json_output:/data/shared/json_output
-      - ./data/shared:/data/shared
     networks:
       - pipeline-net
     deploy:
@@ -109,6 +104,7 @@ services:
   spark-worker-1:
     image: bitnami/spark:3.5.0
     container_name: spark-worker-1
+    privileged: true
     depends_on:
       - spark-master
     ports:
@@ -124,9 +120,8 @@ services:
       - SPARK_SSL_ENABLED=no
       - SPARK_WORKER_WEBUI_PORT=8082
     volumes:
-      - ./data/shared/xml_input:/data/shared/xml_input
-      - ./data/shared/json_output:/data/shared/json_output
-      - ./data/shared:/data/shared
+       - json_output:/data/shared/json_output
+       - ./data/shared/xml_input:/data/shared/xml_input
     networks:
       - pipeline-net
     deploy:
@@ -141,6 +136,7 @@ services:
   spark-worker-2:
     image: bitnami/spark:3.5.0
     container_name: spark-worker-2
+    privileged: true
     depends_on:
       - spark-master
     ports:
@@ -156,9 +152,8 @@ services:
       - SPARK_SSL_ENABLED=no
       - SPARK_WORKER_WEBUI_PORT=8083
     volumes:
-      - ./data/shared/xml_input:/data/shared/xml_input
-      - ./data/shared/json_output:/data/shared/json_output
-      - ./data/shared:/data/shared
+       - json_output:/data/shared/json_output
+       - ./data/shared/xml_input:/data/shared/xml_input
     networks:
       - pipeline-net
     deploy:
@@ -174,18 +169,17 @@ services:
     build:
       context: ./spark_service
     container_name: spark-service
+    privileged: true
     ports:
       - "5000:5000"
     depends_on:
       - spark-master
-      - spark-worker-1
-      - spark-worker-2
     environment:
       - SPARK_MASTER_URL=spark://spark-master:7077
     volumes:
-      - ./data/shared/xml_input:/data/shared/xml_input
-      - ./data/shared/json_output:/data/shared/json_output
-      - ./data/shared:/data/shared
+       - json_output:/data/shared/json_output
+       - ./data/shared/xml_input:/data/shared/xml_input
+
     networks:
       - pipeline-net
     deploy:
@@ -211,6 +205,7 @@ volumes:
   nifi_content_repository:
   nifi_provenance_repository:
   nifi_state:
+  json_output: 
 
 networks:
   pipeline-net:
