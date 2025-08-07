@@ -23,6 +23,10 @@ services:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
       - ELASTICSEARCH_SERVICEACCOUNTTOKEN=${KIBANA_SA_TOKEN}
       - NODE_TLS_REJECT_UNAUTHORIZED=0
+      - xpack.encryptedSavedObjects.encryptionKey=14ca554d4c650cba5304eec21e780d3d
+      - xpack.reporting.encryptionKey=808d2d92461fd85c65770165b2861a6a
+      - xpack.security.encryptionKey=d3f43075aa80a5f048f91d2245367834
+
     ports:
       - "5601:5601"
     depends_on:
@@ -90,7 +94,8 @@ services:
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
       - SPARK_SSL_ENABLED=no
     volumes:
-      - shared_json_output:/data/shared/json_output
+      - ./data/shared/json_output:/data/shared/json_output:rw
+      - ./data/shared/xml_input:/data/shared/xml_input
       - data_shared:/data/shared
     networks:
       - pipeline-net
@@ -122,7 +127,7 @@ services:
       - SPARK_SSL_ENABLED=no
       - SPARK_WORKER_WEBUI_PORT=8082
     volumes:
-      - shared_json_output:/data/shared/json_output
+      - ./data/shared/json_output:/data/shared/json_output:rw
       - ./data/shared/xml_input:/data/shared/xml_input
       - data_shared:/data/shared
     networks:
@@ -155,7 +160,7 @@ services:
       - SPARK_SSL_ENABLED=no
       - SPARK_WORKER_WEBUI_PORT=8083
     volumes:
-      - shared_json_output:/data/shared/json_output
+      - ./data/shared/json_output:/data/shared/json_output:rw
       - ./data/shared/xml_input:/data/shared/xml_input
       - data_shared:/data/shared
     networks:
@@ -181,7 +186,8 @@ services:
     environment:
       - SPARK_MASTER_URL=spark://spark-master:7077
     volumes:
-      - shared_json_output:/data/shared/json_output
+    
+      - ./data/shared/json_output:/data/shared/json_output:rw
       - ./data/shared/xml_input:/data/shared/xml_input
       - data_shared:/data/shared
     networks:
@@ -209,8 +215,8 @@ volumes:
   nifi_content_repository:
   nifi_provenance_repository:
   nifi_state:
-  shared_json_output:
   data_shared:
+  kibana_data:
 
 networks:
   pipeline-net:

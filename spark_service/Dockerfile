@@ -27,7 +27,7 @@ RUN chmod +x spark.sh
 # Create necessary directories and ensure proper permissions
 RUN mkdir -p /data/shared && \
     mkdir -p /tmp && \
-    chmod 755 /data/shared
+    chmod 777 /data/shared
 
 EXPOSE 5000
 

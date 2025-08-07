@@ -15,6 +15,7 @@ KIBANA_TOKEN_NAME_IN_ES="kibana-token"
 # --- 1. Ensure Data Directories Exist and Set Host Permissions (Optional but good for dev) ---
 echo "SETUP: Ensuring data directories exist and setting permissions..."
 mkdir -p "${DATA_DIR}/shared/xml_input" \
+         "${DATA_DIR}/shared/json_output" \
          "${DATA_DIR}/landing" \
          "${DATA_DIR}/success" \
          "${DATA_DIR}/failure" \
